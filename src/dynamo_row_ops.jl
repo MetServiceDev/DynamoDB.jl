@@ -564,7 +564,7 @@ function query(aws::AWSConfig,
                select_type=nothing)
 
     returned_ct = 0
-    function run_query_part(start_key)
+    function run_query_part(start_key,ch)
         request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
                                  consistant_read=consistant_read, scan_index_forward=scan_index_forward,
                                  limit=limit, index_name=index_name, select_type=select_type,
@@ -577,7 +577,7 @@ function query(aws::AWSConfig,
         # ScannedCount -- number of items accessed
 
         for e=res["Items"]
-            produce(value_from_attributes(table.:ty, e))
+            put!(ch,value_from_attributes(table.:ty, e))
             returned_ct += 1
             if returned_ct == limit
                 return
@@ -586,11 +586,13 @@ function query(aws::AWSConfig,
 
         if haskey(res, "LastEvaluatedKey")
             res["Items"] = nothing
-            run_query_part(res["LastEvaluatedKey"])
+            run_query_part(res["LastEvaluatedKey"],ch)
         end
     end
 
-    @task run_query_part(nothing)
+    Channel() do ch
+        run_query_part(nothing,ch)
+    end
 end
 
 function query(aws::AWSConfig,
@@ -710,7 +712,7 @@ function scan(aws::AWSConfig,
               index_name=nothing)
 
     returned_ct = 0
-    function run_scan_part(start_key)
+    function run_scan_part(start_key,ch)
         request_map = scan_dict(table, filter;
                         projection=projection, consistant_read=consistant_read,
                         scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
@@ -724,7 +726,7 @@ function scan(aws::AWSConfig,
         # ScannedCount -- number of items accessed
 
         for e=res["Items"]
-            produce(value_from_attributes(table.:ty, e))
+            put!(ch,value_from_attributes(table.:ty, e))
             returned_ct += 1
             if returned_ct == limit
                 return
@@ -732,11 +734,13 @@ function scan(aws::AWSConfig,
         end
 
         if haskey(res, "LastEvaluatedKey")
-            run_scan_part(res["LastEvaluatedKey"])
+            run_scan_part(res["LastEvaluatedKey"],ch)
         end
     end
 
-    @task run_scan_part(nothing)
+    Channel() do ch
+        run_scan_part(nothing,ch)
+    end
 end
 
 
